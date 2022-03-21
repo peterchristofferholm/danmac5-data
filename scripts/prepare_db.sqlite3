@@ -1,0 +1,158 @@
+.mode tabs
+.separator "\t"
+.headers off
+
+-------------------------------------------------------------------------------
+-- dbsnp reference data with rs ids
+
+create temp table dbsnp (
+    chrom text, pos bigint, id text, ref text, alt text, qual text,
+    filter text, info text
+);
+
+.import '| grep -v "^#" resources/hg38.dbsnp138.vcf' dbsnp
+
+-------------------------------------------------------------------------------
+-- import data from vcf files
+
+create temp table _vcf_all (
+    chrom text, pos bigint, id text, ref text, alt text, qual text,
+    filter text, info text
+);
+
+.import '| zcat 01-unpacked/*.all*.vcf.gz | grep -v "^#"' _vcf_all
+
+create temp table _vcf_female (
+    chrom text, pos bigint, id text, ref text, alt text, qual text,
+    filter text, info text
+);
+
+.import '| zcat 01-unpacked/*.female*.vcf.gz | grep -v "^#"' _vcf_female
+
+create temp table _vcf_male (
+    chrom text, pos bigint, id text, ref text, alt text, qual text,
+    filter text, info text
+);
+
+.import '| zcat 01-unpacked/*.male*.vcf.gz | grep -v "^#"' _vcf_male
+
+-------------------------------------------------------------------------------
+
+create table danmac5 (
+    chrom text, 
+    pos bigint, 
+    id text, 
+    ref text, 
+    alt text, 
+    info text,
+    strata text
+);
+
+-------------------------------------------------------------------------------
+-- add rs ids to 'all'
+
+create temp table _vcf_all_rs as
+  select x.chrom, x.pos, y.id, x.ref, x.alt, x.info, 1 as flipped
+   from _vcf_all x
+   inner join dbsnp y
+     on x.chrom=y.chrom
+    and x.pos=y.pos
+    and x.ref=y.alt
+    and x.alt=y.ref
+  union
+  select x.chrom, x.pos, y.id, x.ref, x.alt, x.info, 0 as flipped
+   from _vcf_all x
+   inner join dbsnp y
+     on x.chrom=y.chrom
+    and x.pos=y.pos
+    and x.ref=y.ref
+    and x.alt=y.alt
+;
+
+insert into danmac5
+    select x.chrom, x.pos, null as id, x.ref, x.alt, x.info, 'all'
+      from _vcf_all x left join _vcf_all_rs y
+        on x.chrom=y.chrom
+       and x.pos=y.pos
+       and x.ref=y.ref
+       and x.alt=y.alt
+     where y.id is null
+     union
+    select chrom, pos, id, ref, alt, info, 'all'
+      from _vcf_all_rs
+;
+
+-------------------------------------------------------------------------------
+-- add rs ids to 'female'
+
+create temp table _vcf_female_rs as
+  select x.chrom, x.pos, y.id, x.ref, x.alt, x.info, 1 as flipped
+   from _vcf_female x
+   inner join dbsnp y
+     on x.chrom=y.chrom
+    and x.pos=y.pos
+    and x.ref=y.alt
+    and x.alt=y.ref
+  union
+  select x.chrom, x.pos, y.id, x.ref, x.alt, x.info, 0 as flipped
+   from _vcf_female x
+   inner join dbsnp y
+     on x.chrom=y.chrom
+    and x.pos=y.pos
+    and x.ref=y.ref
+    and x.alt=y.alt
+;
+
+insert into danmac5
+    select x.chrom, x.pos, null as id, x.ref, x.alt, x.info, 'female'
+      from _vcf_female x left join _vcf_female_rs y
+        on x.chrom=y.chrom
+       and x.pos=y.pos
+       and x.ref=y.ref
+       and x.alt=y.alt
+     where y.id is null
+     union
+    select chrom, pos, id, ref, alt, info, 'female'
+      from _vcf_female_rs
+;
+
+-------------------------------------------------------------------------------
+-- add rs ids to 'male'
+
+create temp table _vcf_male_rs as
+  select x.chrom, x.pos, y.id, x.ref, x.alt, x.info, 1 as flipped
+   from _vcf_male x
+   inner join dbsnp y
+     on x.chrom=y.chrom
+    and x.pos=y.pos
+    and x.ref=y.alt
+    and x.alt=y.ref
+  union
+  select x.chrom, x.pos, y.id, x.ref, x.alt, x.info, 0 as flipped
+   from _vcf_male x
+   inner join dbsnp y
+     on x.chrom=y.chrom
+    and x.pos=y.pos
+    and x.ref=y.ref
+    and x.alt=y.alt
+;
+
+insert into danmac5
+    select x.chrom, x.pos, null as id, x.ref, x.alt, x.info, 'male'
+      from _vcf_male x left join _vcf_male_rs y
+        on x.chrom=y.chrom
+       and x.pos=y.pos
+       and x.ref=y.ref
+       and x.alt=y.alt
+     where y.id is null
+     union
+    select chrom, pos, id, ref, alt, info, 'male'
+      from _vcf_male_rs
+;
+
+-------------------------------------------------------------------------------
+-- add indexing 
+
+create index idx_chrom_pos on danmac5 (chrom, pos);
+create index idx_strata on danmac5 (strata);
+create index idx_id on danmac5 (id);

@@ -1,3 +1,7 @@
 .snakemake
+.snakemake_timestamp
+
+# Raw files / Data files
 *.db
 *.gz
+*.vcf
