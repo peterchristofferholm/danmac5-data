@@ -26,13 +26,13 @@ wildcard_constraints:
 
 rule process_vcfs:
     input: 
-        "01-unpacked/{chrom}.all.sumstats.raremasked.vcf.gz",
-        "01-unpacked/{chrom}.female.sumstats.raremasked.vcf.gz",
-        "01-unpacked/{chrom}.male.sumstats.raremasked.vcf.gz"
+        "01-unpacked/all.{chrom}.sumstats.raremasked.vcf.gz",
+        "01-unpacked/female.{chrom}.sumstats.raremasked.vcf.gz",
+        "01-unpacked/male.{chrom}.sumstats.raremasked.vcf.gz"
     output: "02-processed/{chrom}.tsv"
     script: "scripts/process_vcfs.R"
 
-chroms = [f"chr{x}" for x in ["X", "Y", *range(1, 23)]]
+chroms = [f"chr{x}" for x in ["X", *range(1, 23)]]
 
 rule create_sqlite_database:
     input: 
