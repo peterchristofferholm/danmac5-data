@@ -10,9 +10,12 @@ rule get_dbsnp_vcf:
 
 rule unpack_tarballs:
     input: 
-        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_all.tar.gz",
-        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_female.tar.gz",
-        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_male.tar.gz"
+        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_snps_filter_all.tar.gz",
+        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_snps_filter_female.tar.gz",
+        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_snps_filter_male.tar.gz",
+        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_indels_filter_all.tar.gz",
+        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_indels_filter_female.tar.gz",
+        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_indels_filter_male.tar.gz"
     output: directory("01-unpacked/")
     shell: """
         mkdir {output}
@@ -22,21 +25,22 @@ rule unpack_tarballs:
     """
 
 wildcard_constraints:
-    chrom="chr(\d+|[XY])"
+    chrom="chr(\d+|[XY])", vartype="snps|indels"
 
 rule process_vcfs:
     input: 
-        "01-unpacked/all.{chrom}.sumstats.raremasked.vcf.gz",
-        "01-unpacked/female.{chrom}.sumstats.raremasked.vcf.gz",
-        "01-unpacked/male.{chrom}.sumstats.raremasked.vcf.gz"
-    output: "02-processed/{chrom}.tsv"
+        "01-unpacked/all.{chrom}.sumstats.{vartype}.raremasked.vcf.gz",
+        "01-unpacked/female.{chrom}.sumstats.{vartype}.raremasked.vcf.gz",
+        "01-unpacked/male.{chrom}.sumstats.{vartype}.raremasked.vcf.gz"
+    output: "02-processed/{chrom}_{vartype}.tsv"
     script: "scripts/process_vcfs.R"
 
-chroms = [f"chr{x}" for x in ["X", *range(1, 23)]]
+chroms  = [f"chr{x}" for x in ["X", *range(1, 23)]]
+vartype = ["snps", "indels"]
 
 rule create_sqlite_database:
     input: 
-        expand(rules.process_vcfs.output[0], chrom=chroms),
+        expand(rules.process_vcfs.output[0], chrom=chroms, vartype=vartype),
         rules.get_dbsnp_vcf.output
     output: "danmac5.db"
     shell: "sqlite3 {output} < scripts/prepare_db.sqlite3"
