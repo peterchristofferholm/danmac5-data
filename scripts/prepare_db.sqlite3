@@ -77,4 +77,6 @@ insert into danmac5
 -- add indexing 
 
 create index idx_chrom_pos on danmac5 (chrom, pos);
+create index idx_chrom on danmac5 (chrom);
+create index idx_pos on danmac5 (pos);
 create index idx_id on danmac5 (id);
