@@ -1,46 +1,16 @@
-dbsnp138_vcf_url = (
-    "https://storage.googleapis.com/genomics-public-data/references/"
-    "hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf"
-)
-
-rule get_dbsnp_vcf:
-    output: "resources/hg38.dbsnp138.vcf"
-    params: url=dbsnp138_vcf_url
-    shell: "wget {params.url} -O {output}"
-
-rule unpack_tarballs:
-    input: 
-        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_snps_filter_all.tar.gz",
-        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_snps_filter_female.tar.gz",
-        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_snps_filter_male.tar.gz",
-        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_indels_filter_all.tar.gz",
-        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_indels_filter_female.tar.gz",
-        "00-tarballs/DNK_Hansen_Nyegaard_Werge_cRAM_VCF_sumstat_indels_filter_male.tar.gz"
-    output: directory("01-unpacked/")
-    shell: """
-        mkdir {output}
-        for f in {input}; do
-            tar -C {output} -xf $f --strip-components 5 ;
-        done
-    """
+chroms  = [f"chr{x}" for x in range(1, 23)]
 
 wildcard_constraints:
-    chrom="chr(\d+|[XY])", vartype="snps|indels"
+    chrom="chr(\d+|[XY])"
 
-rule process_vcfs:
-    input: 
-        "01-unpacked/all.{chrom}.sumstats.{vartype}.raremasked.vcf.gz",
-        "01-unpacked/female.{chrom}.sumstats.{vartype}.raremasked.vcf.gz",
-        "01-unpacked/male.{chrom}.sumstats.{vartype}.raremasked.vcf.gz"
-    output: "02-processed/{chrom}_{vartype}.tsv"
-    script: "scripts/process_vcfs.R"
-
-chroms  = [f"chr{x}" for x in ["X", *range(1, 23)]]
-vartype = ["snps", "indels"]
+rule add_annotation_info:
+    input:
+        "data/anno/all_PASS_{chrom}.hg38_multianno.txt",
+        "data/macs/{chrom}_snps.tsv", "data/macs/{chrom}_indels.tsv"
+    output: "data/done/{chrom}.tsv"
+    script: "scripts/add_annotation_info.py"
 
 rule create_sqlite_database:
-    input: 
-        expand(rules.process_vcfs.output[0], chrom=chroms, vartype=vartype),
-        rules.get_dbsnp_vcf.output
-    output: "danmac5.db"
-    shell: "sqlite3 {output} < scripts/prepare_db.sqlite3"
+    input: expand("data/done/{chrom}.tsv", chrom=chroms)
+    output: "danmac5.sqlite"
+    script: "scripts/create_database.py"
